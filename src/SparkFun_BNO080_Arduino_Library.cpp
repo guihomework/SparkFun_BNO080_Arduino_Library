@@ -1,9 +1,10 @@
 /*
-  This is a library written for the BNO080
+  This is a modified version of the library written for the BNO080
   SparkFun sells these at its website: www.sparkfun.com
   Do you like this library? Help support SparkFun. Buy a board!
   https://www.sparkfun.com/products/14686
 
+  Modified by Guillaume Walck August 2019
   Written by Nathan Seidle @ SparkFun Electronics, December 28th, 2017
 
   The BNO080 IMU is a powerful triple axis gyro/accel/magnetometer coupled with an ARM processor
@@ -12,6 +13,8 @@
 
   This library handles the initialization of the BNO080 and is able to query the sensor
   for different readings.
+
+  This version of the library provides a way to know if the data was updated
 
   https://github.com/sparkfun/SparkFun_BNO080_Arduino_Library
 
@@ -27,7 +30,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "SparkFun_BNO080_Arduino_Library.h"
+#include "BNO08x_Library.h"
 
 //Attempt communication with the device
 //Return true if we got a 'Polo' back from Marco
@@ -255,6 +258,7 @@ void BNO080::parseInputReport(void)
 		rawAccelX = data1;
 		rawAccelY = data2;
 		rawAccelZ = data3;
+		newData[SENSOR_REPORTID_ACCELEROMETER] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_LINEAR_ACCELERATION)
 	{
@@ -262,6 +266,7 @@ void BNO080::parseInputReport(void)
 		rawLinAccelX = data1;
 		rawLinAccelY = data2;
 		rawLinAccelZ = data3;
+		newData[SENSOR_REPORTID_LINEAR_ACCELERATION] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_GYROSCOPE)
 	{
@@ -269,6 +274,7 @@ void BNO080::parseInputReport(void)
 		rawGyroX = data1;
 		rawGyroY = data2;
 		rawGyroZ = data3;
+		newData[SENSOR_REPORTID_GYROSCOPE] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_MAGNETIC_FIELD)
 	{
@@ -276,6 +282,7 @@ void BNO080::parseInputReport(void)
 		rawMagX = data1;
 		rawMagY = data2;
 		rawMagZ = data3;
+		newData[SENSOR_REPORTID_MAGNETIC_FIELD] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_ROTATION_VECTOR || shtpData[5] == SENSOR_REPORTID_GAME_ROTATION_VECTOR)
 	{
@@ -285,18 +292,23 @@ void BNO080::parseInputReport(void)
 		rawQuatK = data3;
 		rawQuatReal = data4;
 		rawQuatRadianAccuracy = data5; //Only available on rotation vector, not game rot vector
+		newData[SENSOR_REPORTID_ROTATION_VECTOR] = true;
+		newData[SENSOR_REPORTID_GAME_ROTATION_VECTOR] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_STEP_COUNTER)
 	{
 		stepCount = data3; //Bytes 8/9
+		newData[SENSOR_REPORTID_STEP_COUNTER] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_STABILITY_CLASSIFIER)
 	{
 		stabilityClassifier = shtpData[5 + 4]; //Byte 4 only
+		newData[SENSOR_REPORTID_STABILITY_CLASSIFIER] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER)
 	{
 		activityClassifier = shtpData[5 + 5]; //Most likely state
+		newData[SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER] = true;
 
 		//Load activity classification confidences into the array
 		for (uint8_t x = 0; x < 9; x++)					   //Hardcoded to max of 9. TODO - bring in array size
@@ -307,18 +319,21 @@ void BNO080::parseInputReport(void)
 		memsRawAccelX = data1;
 		memsRawAccelY = data2;
 		memsRawAccelZ = data3;
+		newData[SENSOR_REPORTID_RAW_ACCELEROMETER] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_RAW_GYROSCOPE)
 	{
 		memsRawGyroX = data1;
 		memsRawGyroY = data2;
 		memsRawGyroZ = data3;
+		newData[SENSOR_REPORTID_RAW_GYROSCOPE] = true;
 	}
 	else if (shtpData[5] == SENSOR_REPORTID_RAW_MAGNETOMETER)
 	{
 		memsRawMagX = data1;
 		memsRawMagY = data2;
 		memsRawMagZ = data3;
+		newData[SENSOR_REPORTID_RAW_MAGNETOMETER] = true;
 	}
 	else if (shtpData[5] == SHTP_REPORT_COMMAND_RESPONSE)
 	{
@@ -339,6 +354,54 @@ void BNO080::parseInputReport(void)
 	}
 
 	//TODO additional feature reports may be strung together. Parse them all.
+}
+
+bool BNO080::isNewData(uint8_t type)
+{
+	if (type <= SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER)
+		return newData[type];
+	else
+		return false;
+}
+
+void BNO080::resetAllNewData()
+{
+	for (uint8_t i = 0; i <= SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER; i++)
+		newData[i] = false;
+}
+void BNO080::resetNewData(uint8_t type)
+{
+	if (type <= SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER)
+		newData[type] = false;
+}
+
+//Gets the full quaternion only if there is new data
+//i,j,k,real output floats
+// reset_new_data (default=true) on newdata, erase the flag
+bool BNO080::getOnNewQuat(float &i, float &j, float &k, float &real, float radaccuracy, uint8_t &accuracy, bool reset_new_data)
+{
+	if (newData[SENSOR_REPORTID_ROTATION_VECTOR]) //if new data only
+	{
+		getQuat(i, j, k, real, radaccuracy, accuracy, reset_new_data);
+		return true;
+	}
+	return false;
+}
+
+//Gets the full quaternion
+//i,j,k,real output floats
+// reset_new_data (default=true) on newdata, erase the flag
+void BNO080::getQuat(float &i, float &j, float &k, float &real, float radaccuracy, uint8_t &accuracy, bool reset_new_data)
+{
+		i = qToFloat(rawQuatI, rotationVector_Q1);
+		j = qToFloat(rawQuatJ, rotationVector_Q1);
+		k = qToFloat(rawQuatK, rotationVector_Q1);
+		real = qToFloat(rawQuatReal, rotationVector_Q1);
+		radaccuracy = qToFloat(rawQuatRadianAccuracy, rotationVector_Q1);
+		accuracy = quatAccuracy;
+
+		if (reset_new_data)		//reset the new data flag
+			newData[SENSOR_REPORTID_ROTATION_VECTOR] = false;
 }
 
 //Return the rotation vector quaternion I
@@ -382,6 +445,33 @@ uint8_t BNO080::getQuatAccuracy()
 	return (quatAccuracy);
 }
 
+
+//Gets the full acceleration only if there is new data
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+bool BNO080::getOnNewAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+	if (newData[SENSOR_REPORTID_ACCELEROMETER]) //if new data only
+	{
+		getAccel(x, y, z, accuracy, reset_new_data);
+		return true;
+	}
+	return false;
+}
+
+//Gets the full acceleration
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+void BNO080::getAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+		x = qToFloat(rawAccelX, accelerometer_Q1);
+		y = qToFloat(rawAccelY, accelerometer_Q1);
+		z = qToFloat(rawAccelZ, accelerometer_Q1);
+		accuracy = accelAccuracy;
+		if (reset_new_data)		//reset the new data flag
+			newData[SENSOR_REPORTID_ACCELEROMETER] = false;
+}
+
 //Return the acceleration component
 float BNO080::getAccelX()
 {
@@ -411,6 +501,33 @@ uint8_t BNO080::getAccelAccuracy()
 
 // linear acceleration, i.e. minus gravity
 
+//Gets the full lin acceleration only if there is new data
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+bool BNO080::getOnNewLinAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+	if (newData[SENSOR_REPORTID_LINEAR_ACCELERATION]) //if new data only
+	{
+		getLinAccel(x, y, z, accuracy, reset_new_data);
+		return true;
+	}
+	return false;
+}
+
+//Gets the full lin acceleration
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+void BNO080::getLinAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+		x = qToFloat(rawLinAccelX, linear_accelerometer_Q1);
+		y = qToFloat(rawLinAccelY, linear_accelerometer_Q1);
+		z = qToFloat(rawLinAccelZ, linear_accelerometer_Q1);
+		accuracy = accelLinAccuracy;
+
+		if (reset_new_data)		//reset the new data flag
+			newData[SENSOR_REPORTID_LINEAR_ACCELERATION] = false;
+}
+
 //Return the acceleration component
 float BNO080::getLinAccelX()
 {
@@ -436,6 +553,32 @@ float BNO080::getLinAccelZ()
 uint8_t BNO080::getLinAccelAccuracy()
 {
 	return (accelLinAccuracy);
+}
+
+//Gets the full gyro vector only if there is new data
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+bool BNO080::getOnNewGyro(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+	if (newData[SENSOR_REPORTID_GYROSCOPE]) //if new data only
+	{
+		getGyro(x, y, z, accuracy, reset_new_data);
+		return true;
+	}
+	return false;
+}
+
+//Gets the full gyro vector
+//x,y,z output floats
+// reset_new_data (default=true) on newdata, erase the flag
+void BNO080::getGyro(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data)
+{
+		x = qToFloat(rawGyroX, gyro_Q1);
+		y = qToFloat(rawGyroY, gyro_Q1);
+		z = qToFloat(rawGyroZ, gyro_Q1);
+		accuracy = gyroAccuracy;
+		if (reset_new_data)		//reset the new data flag
+			newData[SENSOR_REPORTID_GYROSCOPE] = false;
 }
 
 //Return the gyro component

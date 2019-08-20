@@ -1,9 +1,10 @@
 /*
-  This is a library written for the BNO080
+  This is a modified version of the library written for the BNO080
   SparkFun sells these at its website: www.sparkfun.com
   Do you like this library? Help support SparkFun. Buy a board!
   https://www.sparkfun.com/products/14686
 
+  Modified by Guillaume Walck August 2019
   Written by Nathan Seidle @ SparkFun Electronics, December 28th, 2017
 
   The BNO080 IMU is a powerful triple axis gyro/accel/magnetometer coupled with an ARM processor
@@ -12,6 +13,8 @@
 
   This library handles the initialization of the BNO080 and is able to query the sensor
   for different readings.
+
+  This version of the library provides a way to know if the data was updated
 
   https://github.com/sparkfun/SparkFun_BNO080_Arduino_Library
 
@@ -161,26 +164,39 @@ public:
 	void parseInputReport(void);   //Parse sensor readings out of report
 	void parseCommandReport(void); //Parse command responses out of report
 
+	void resetAllNewData();
+	bool isNewData(uint8_t type);
+	void resetNewData(uint8_t type);
+
 	float getQuatI();
 	float getQuatJ();
 	float getQuatK();
 	float getQuatReal();
 	float getQuatRadianAccuracy();
+	void getQuat(float &i, float &j, float &k, float &real, float radaccuracy, uint8_t &accuracy, bool reset_new_data=true);
+	bool getOnNewQuat(float &i, float &j, float &k, float &real, float radaccuracy, uint8_t &accuracy, bool reset_new_data=true);
 	uint8_t getQuatAccuracy();
 
 	float getAccelX();
 	float getAccelY();
 	float getAccelZ();
 	uint8_t getAccelAccuracy();
+	void getAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
+	bool getOnNewAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
 
 	float getLinAccelX();
 	float getLinAccelY();
 	float getLinAccelZ();
+	void getLinAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
+	bool getOnNewLinAccel(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
+
 	uint8_t getLinAccelAccuracy();
 
 	float getGyroX();
 	float getGyroY();
 	float getGyroZ();
+	void getGyro(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
+	bool getOnNewGyro(float &x, float &y, float &z, uint8_t &accuracy, bool reset_new_data=true);
 	uint8_t getGyroAccuracy();
 
 	float getMagX();
@@ -236,6 +252,8 @@ public:
 	uint8_t sequenceNumber[6] = {0, 0, 0, 0, 0, 0}; //There are 6 com channels. Each channel has its own seqnum
 	uint8_t commandSequenceNumber = 0;				//Commands have a seqNum as well. These are inside command packet, the header uses its own seqNum per channel
 	uint32_t metaData[MAX_METADATA_SIZE];			//There is more than 10 words in a metadata record but we'll stop at Q point 3
+  
+  bool newData[SENSOR_REPORTID_PERSONAL_ACTIVITY_CLASSIFIER+1];			//Vector of flags to report on newdata for a given report
 
 private:
 	//Variables
@@ -255,9 +273,11 @@ private:
 	//These are the raw sensor values (without Q applied) pulled from the user requested Input Report
 	uint16_t rawAccelX, rawAccelY, rawAccelZ, accelAccuracy;
 	uint16_t rawLinAccelX, rawLinAccelY, rawLinAccelZ, accelLinAccuracy;
+	bool linaccel_newdata;
 	uint16_t rawGyroX, rawGyroY, rawGyroZ, gyroAccuracy;
 	uint16_t rawMagX, rawMagY, rawMagZ, magAccuracy;
 	uint16_t rawQuatI, rawQuatJ, rawQuatK, rawQuatReal, rawQuatRadianAccuracy, quatAccuracy;
+	bool quat_newdata;
 	uint16_t stepCount;
 	uint32_t timeStamp;
 	uint8_t stabilityClassifier;
